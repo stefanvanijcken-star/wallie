@@ -25,6 +25,7 @@ import { AccountsOverviewCard } from "@/features/dashboard/accounts-overview-car
 import { ActivitySection } from "@/features/dashboard/activity-section"
 import { AnalyticsSection } from "@/features/dashboard/analytics-section"
 import { DashboardHero } from "@/features/dashboard/dashboard-hero"
+import { DeleteAccountButton } from "@/features/dashboard/delete-account-button"
 import { SignOutButton } from "@/features/auth/sign-out-button"
 import { OnboardingBanner } from "@/features/dashboard/onboarding-banner"
 import { SavingsJarGrid } from "@/features/dashboard/savings-jar-grid"
@@ -327,12 +328,17 @@ export function SettingsView() {
           <CardHeader>
             <CardTitle>Account</CardTitle>
             <CardDescription>
-              Log uit op dit apparaat. Je kunt daarna weer inloggen met je
-              Wallie account.
+              {isDemoMode
+                ? "In demo-modus kun je alleen lokale demo-data beheren."
+                : "Log uit op dit apparaat of verwijder je Wallie-account permanent."}
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="grid gap-3">
             <SignOutButton className="w-full justify-start" />
+            <DeleteAccountButton
+              className="w-full justify-start"
+              disabled={isDemoMode}
+            />
           </CardContent>
         </Card>
       </div>
