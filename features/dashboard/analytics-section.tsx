@@ -94,41 +94,80 @@ function filterByPeriod(transactions: Transaction[], period: Period) {
   return transactions.filter((t) => new Date(t.createdAt) >= cutoff)
 }
 
+function getDateKey(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+
+  return `${year}-${month}-${day}`
+}
+
+function formatChartDate(date: Date) {
+  return new Intl.DateTimeFormat("nl-NL", {
+    day: "numeric",
+    month: "short",
+  }).format(date)
+}
+
 function buildSavingsTrend(transactions: Transaction[], totalSaved: number) {
-  const relevantTransactions = transactions
-    .filter((transaction) => getTransactionImpact(transaction) !== 0)
-    .slice(0, 8)
+  const relevantTransactions = transactions.filter(
+    (transaction) => getTransactionImpact(transaction) !== 0
+  )
   const totalImpact = relevantTransactions.reduce(
     (sum, transaction) => sum + getTransactionImpact(transaction),
     0
   )
-  let runningTotal = Math.max(totalSaved - totalImpact, 0)
-  const points = [
-    {
-      label: "Start",
-      total: runningTotal,
-    },
-  ]
 
-  relevantTransactions.reverse().forEach((transaction) => {
-    runningTotal += getTransactionImpact(transaction)
-    points.push({
-      label: new Intl.DateTimeFormat("nl-NL", {
-        day: "numeric",
-        month: "short",
-      }).format(new Date(transaction.createdAt)),
-      total: Math.max(runningTotal, 0),
-    })
+  if (relevantTransactions.length === 0) {
+    return [
+      {
+        label: "Nu",
+        total: totalSaved,
+      },
+    ]
+  }
+
+  const impactByDay = new Map<string, number>()
+
+  relevantTransactions.forEach((transaction) => {
+    const dateKey = getDateKey(new Date(transaction.createdAt))
+
+    impactByDay.set(
+      dateKey,
+      (impactByDay.get(dateKey) ?? 0) + getTransactionImpact(transaction)
+    )
   })
 
-  if (points.length === 1) {
+  const sortedDayKeys = [...impactByDay.keys()].sort()
+  const startDate = new Date(`${sortedDayKeys[0]}T00:00:00`)
+  const endDate = new Date()
+  const points: Array<{ label: string; total: number }> = []
+  let runningTotal = Math.max(totalSaved - totalImpact, 0)
+  const currentDate = new Date(startDate)
+
+  while (currentDate <= endDate) {
+    const dateKey = getDateKey(currentDate)
+
+    runningTotal += impactByDay.get(dateKey) ?? 0
     points.push({
-      label: "Nu",
-      total: totalSaved,
+      label: formatChartDate(currentDate),
+      total: Math.max(runningTotal, 0),
     })
+
+    currentDate.setDate(currentDate.getDate() + 1)
   }
 
   return points
+}
+
+function formatPieLabel({
+  name,
+  percent,
+}: {
+  name?: string
+  percent?: number
+}) {
+  return `${name ?? "Spaarpot"} ${Math.round((percent ?? 0) * 100)}%`
 }
 
 function getPositiveImpact(transactions: Transaction[]) {
@@ -356,8 +395,16 @@ export function AnalyticsSection({
                       <ChartTooltip
                         content={
                           <ChartTooltipContent
-                            formatter={(value) => formatCurrency(Number(value))}
-                            hideLabel
+                            formatter={(value, name) => (
+                              <>
+                                <span className="text-muted-foreground">
+                                  {String(name)}
+                                </span>
+                                <span className="font-mono font-medium text-foreground tabular-nums">
+                                  {formatCurrency(Number(value))}
+                                </span>
+                              </>
+                            )}
                           />
                         }
                       />
@@ -365,6 +412,8 @@ export function AnalyticsSection({
                         data={jarDistribution}
                         dataKey="value"
                         innerRadius={52}
+                        label={formatPieLabel}
+                        labelLine={false}
                         nameKey="name"
                         outerRadius={84}
                         strokeWidth={0}
