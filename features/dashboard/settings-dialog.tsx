@@ -1,7 +1,8 @@
 "use client"
 
 import { ChangeEvent, useRef, useState } from "react"
-import { Download, Trash2, Upload } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Download, Loader2, Trash2, Upload } from "lucide-react"
 
 import {
   AlertDialog,
@@ -24,7 +25,9 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { toast } from "@/components/ui/sonner"
 import {
+  clearDashboardState,
   exportDashboardState,
   importDashboardState,
 } from "@/features/dashboard/dashboard-storage"
@@ -47,9 +50,13 @@ export function SettingsDialog({
   onImportData,
   onOpenChange,
 }: SettingsDialogProps) {
+  const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [importError, setImportError] = useState("")
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false)
+  const [isDeleteAccountConfirmOpen, setIsDeleteAccountConfirmOpen] =
+    useState(false)
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false)
 
   function handleExport() {
     const exportValue = exportDashboardState(state)
@@ -87,6 +94,42 @@ export function SettingsDialog({
     }
 
     reader.readAsText(file)
+  }
+
+  async function handleDeleteAccount() {
+    if (isDeletingAccount) {
+      return
+    }
+
+    setIsDeletingAccount(true)
+
+    try {
+      const response = await fetch("/api/account", {
+        method: "DELETE",
+      })
+
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as {
+          message?: string
+        } | null
+
+        throw new Error(body?.message ?? "Account verwijderen is niet gelukt.")
+      }
+
+      clearDashboardState()
+      toast.success("Je account is verwijderd")
+      setIsDeleteAccountConfirmOpen(false)
+      onOpenChange(false)
+      router.replace("/login")
+      router.refresh()
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Account verwijderen is niet gelukt."
+      )
+      setIsDeletingAccount(false)
+    }
   }
 
   return (
@@ -165,6 +208,33 @@ export function SettingsDialog({
                 Alles wissen
               </Button>
             </div>
+
+            {!isDemoMode ? (
+              <div className="grid gap-2 rounded-2xl bg-muted p-3">
+                <p className="text-sm font-medium">Account verwijderen</p>
+                <p className="text-sm text-muted-foreground">
+                  Verwijder je Wallie-account, je login en alle data permanent
+                  uit Supabase.
+                </p>
+                <Button
+                  className="justify-start"
+                  disabled={isDeletingAccount}
+                  onClick={() => setIsDeleteAccountConfirmOpen(true)}
+                  type="button"
+                  variant="destructive"
+                >
+                  {isDeletingAccount ? (
+                    <Loader2
+                      className="animate-spin"
+                      data-icon="inline-start"
+                    />
+                  ) : (
+                    <Trash2 data-icon="inline-start" />
+                  )}
+                  Account verwijderen
+                </Button>
+              </div>
+            ) : null}
           </div>
 
           <DialogFooter>
@@ -199,6 +269,44 @@ export function SettingsDialog({
               variant="destructive"
             >
               Alles wissen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        onOpenChange={(open) => {
+          if (!isDeletingAccount) {
+            setIsDeleteAccountConfirmOpen(open)
+          }
+        }}
+        open={isDeleteAccountConfirmOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Account verwijderen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Weet je het zeker? Je Wallie-account, login, rekeningen,
+              spaarpotten, automatiseringen en activiteit worden permanent
+              verwijderd. Dit kan niet ongedaan gemaakt worden.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingAccount}>
+              Annuleren
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isDeletingAccount}
+              onClick={(event) => {
+                event.preventDefault()
+                void handleDeleteAccount()
+              }}
+              variant="destructive"
+            >
+              {isDeletingAccount ? (
+                <Loader2 className="animate-spin" data-icon="inline-start" />
+              ) : null}
+              Account verwijderen
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
